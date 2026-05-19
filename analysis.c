@@ -1,23 +1,4 @@
-/*
- * analysis.c — stateful traffic analysis and anomaly detection.
- *
- * Three detectors run as flow observers, called by flow.c after every
- * packet update via the registered callback:
- *
- *   1. Port scan detection   — flags a source probing > SCAN_PORT_THRESHOLD
- *                              distinct destination ports within SCAN_WINDOW s.
- *
- *   2. SYN flood detection   — flags a source opening > FLOOD_FLOW_THRESHOLD
- *                              new flows within FLOOD_WINDOW s (TCP only).
- *
- *   3. Data exfiltration     — flags a flow whose outbound bytes exceed
- *                              inbound bytes by EXFIL_RATIO and has already
- *                              transferred > EXFIL_MIN_BYTES total.
- *
- *   4. Elephant flow detection — flags a flow responsible for > 10% of total
- *                              session bytes once it exceeds 512 KB. Alerts
- *                              once per flow to avoid repeated noise.
- */
+
 
 #include "analysis.h"
 #include "flow.h"

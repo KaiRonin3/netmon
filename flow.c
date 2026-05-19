@@ -21,7 +21,6 @@ typedef struct {
     flow_t flow;
 } slot_t;
 
-/* Protocol byte totals for the breakdown panel */
 static uint64_t tcp_bytes   = 0;
 static uint64_t udp_bytes   = 0;
 static uint64_t dns_bytes   = 0;
