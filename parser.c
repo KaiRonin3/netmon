@@ -3,85 +3,64 @@
 
 #include <stdio.h>
 #include <arpa/inet.h>
+#include <time.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 #include <netinet/if_ether.h>
 
-void parse_packet(const struct pcap_pkthdr *header,
-                  const u_char *pkt_data)
+void parse_packet(const struct pcap_pkthdr *header, const u_char *pkt_data)
 {
     if (header->caplen < sizeof(struct ether_header))
         return;
 
-    struct ether_header *eth = (struct ether_header*)pkt_data;
+    const struct ether_header *eth = (const struct ether_header *)pkt_data;
 
     if (ntohs(eth->ether_type) != ETHERTYPE_IP)
         return;
 
-    struct ip *ih = (struct ip*)(pkt_data + sizeof(struct ether_header));
+    const struct ip *ih = (const struct ip *)(pkt_data + sizeof(struct ether_header));
+    int ip_hlen = ih->ip_hl * 4;
 
-    int ip_header_len = ih->ip_hl * 4;
-
-    if (header->caplen < sizeof(struct ether_header) + ip_header_len)
+    if (header->caplen < sizeof(struct ether_header) + (unsigned)ip_hlen)
         return;
 
-    char src_ip[INET_ADDRSTRLEN];
-    char dst_ip[INET_ADDRSTRLEN];
+    int offset = sizeof(struct ether_header) + ip_hlen;
 
-    inet_ntop(AF_INET, &(ih->ip_src), src_ip, INET_ADDRSTRLEN);
-    inet_ntop(AF_INET, &(ih->ip_dst), dst_ip, INET_ADDRSTRLEN);
+    flow_t f;
+    f.src_ip   = ih->ip_src.s_addr;
+    f.dst_ip   = ih->ip_dst.s_addr;
+    f.protocol = ih->ip_p;
 
-    int offset = sizeof(struct ether_header) + ip_header_len;
+    uint32_t raw_src_ip   = ih->ip_src.s_addr;
+    uint16_t raw_dst_port = 0;
 
     if (ih->ip_p == IPPROTO_TCP) {
-
-        if (header->caplen < offset + sizeof(struct tcphdr))
+        if (header->caplen < (unsigned)(offset + (int)sizeof(struct tcphdr)))
             return;
+        const struct tcphdr *th = (const struct tcphdr *)(pkt_data + offset);
+        f.src_port    = ntohs(th->th_sport);
+        f.dst_port    = ntohs(th->th_dport);
+        raw_dst_port  = ntohs(th->th_dport);
 
-        struct tcphdr *th = (struct tcphdr*)(pkt_data + offset);
-
-        uint16_t sport = ntohs(th->th_sport);
-        uint16_t dport = ntohs(th->th_dport);
-
-        flow_t f;
-
-        f.src_ip = ih->ip_src.s_addr;
-        f.dst_ip = ih->ip_dst.s_addr;
-        f.src_port = sport;
-        f.dst_port = dport;
-        f.protocol = ih->ip_p;
-
-        normalize_flow(&f);
-        update_flow(&f, header->len);
-    }
-    
-    else if (ih->ip_p == IPPROTO_UDP) {
-
-        if (header->caplen < offset + sizeof(struct udphdr))
+    } else if (ih->ip_p == IPPROTO_UDP) {
+        if (header->caplen < (unsigned)(offset + (int)sizeof(struct udphdr)))
             return;
+        const struct udphdr *uh = (const struct udphdr *)(pkt_data + offset);
+        f.src_port   = ntohs(uh->uh_sport);
+        f.dst_port   = ntohs(uh->uh_dport);
+        raw_dst_port = ntohs(uh->uh_dport);
 
-        struct udphdr *uh = (struct udphdr*)(pkt_data + offset);
-
-        uint16_t sport = ntohs(uh->uh_sport);
-        uint16_t dport = ntohs(uh->uh_dport);
-
-        flow_t f;
-
-        f.src_ip = ih->ip_src.s_addr;
-        f.dst_ip = ih->ip_dst.s_addr;
-        f.src_port = sport;
-        f.dst_port = dport;
-        f.protocol = ih->ip_p;
-
-        normalize_flow(&f);
-        update_flow(&f, header->len);
+    } else {
+        return;  /* unsupported protocol */
     }
 
-    static int counter = 0;
-    counter++;
+    update_flow(&f, header->len, raw_src_ip, raw_dst_port);
 
-    if (counter % 50 == 0) {
+    static time_t last_print = 0;
+    time_t now = time(NULL);
+    if (now != last_print) {
+        last_print = now;
         print_flows();
     }
 }
