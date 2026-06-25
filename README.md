@@ -10,7 +10,7 @@ A real-time network flow analyzer and anomaly detector written in C using libpca
 - Maintains a 4096-slot open-addressing hash table of active flows (FNV-1a hashing, tombstone deletion for probe chain integrity)
 - Bidirectional normalization: A→B and B→A map to the same flow entry
 - Tracks TX and RX bytes separately to distinguish upload vs download direction
-- Expires stale flows every 30 seconds via SIGALRM — no per-packet timestamp checks
+- Expires stale flows every 30 seconds via SIGALRM - no per-packet timestamp checks
 - Live table display sorted by byte count, updated once per second
 - Stale flows (silent > 3s) marked with `~` so historical BPS values are visually distinct
 
@@ -27,7 +27,7 @@ All thresholds are `#define` constants at the top of `analysis.c`.
 
 **CSV export on exit**
 
-When you press Ctrl+C, all active flows are written to a timestamped CSV file (e.g. `netmon_20260519_162233.csv`). Fields: src/dst IP and port, protocol, packet count, total/TX/RX bytes, first/last seen epoch, duration in seconds. Each run produces a new file — no history is overwritten.
+When you press Ctrl+C, all active flows are written to a timestamped CSV file (e.g. `netmon_20260519_162233.csv`). Fields: src/dst IP and port, protocol, packet count, total/TX/RX bytes, first/last seen epoch, duration in seconds. Each run produces a new file - no history is overwritten.
 
 ## Build
 
@@ -48,7 +48,7 @@ sudo ./netmon eth0
 sudo ./netmon
 ```
 
-Requires root (or `CAP_NET_RAW`) to open a live capture. Press Ctrl+C to stop — prints a final flow snapshot and exports CSV on exit.
+Requires root (or `CAP_NET_RAW`) to open a live capture. Press Ctrl+C to stop - prints a final flow snapshot and exports CSV on exit.
 
 ## Example output
 
@@ -82,12 +82,12 @@ analysis.h / analysis.c   port scan, SYN flood, exfil, elephant flow detectors
 Makefile        single-command build, no intermediate object files
 ```
 
-Detection logic is decoupled from flow tracking via an observer callback. `flow.c` calls a registered function after each packet update, passing the raw (pre-normalization) source IP and destination port. `analysis.c` registers its four detectors there — `flow.c` has no knowledge of detection logic.
+Detection logic is decoupled from flow tracking via an observer callback. `flow.c` calls a registered function after each packet update, passing the raw (pre-normalization) source IP and destination port. `analysis.c` registers its four detectors there -`flow.c` has no knowledge of detection logic.
 
 ## Notable implementation details
 
-- **Hash table design** — open addressing with linear probing and tombstone deletion. Tombstones preserve probe chain integrity after deletions without requiring rehashing. Load factor capped at 70% to bound worst-case probe length
-- **Bidirectional normalization** — flows are keyed on the canonical (lower IP, lower port) tuple so A→B and B→A always map to the same entry. TX/RX accounting uses the pre-normalization source to correctly attribute direction
-- **SIGALRM expiry** — stale flow expiry runs on a timer signal rather than checking timestamps on every packet, avoiding a `time()` syscall per packet at high traffic rates
-- **Stack frame fix** — `print_flows` originally allocated `flow_t sorted[4096]` (~180 KB) on the stack; changed to `static` to avoid stack exhaustion on busy interfaces
-- **Dangling pointer fix** — original `main.c` called `pcap_freealldevs()` before passing `dev` (a pointer into the freed list) to `pcap_open_live()`. Fixed by copying the device name into a local buffer before freeing
+- **Hash table design** - open addressing with linear probing and tombstone deletion. Tombstones preserve probe chain integrity after deletions without requiring rehashing. Load factor capped at 70% to bound worst-case probe length
+- **Bidirectional normalization** - flows are keyed on the canonical (lower IP, lower port) tuple so A→B and B→A always map to the same entry. TX/RX accounting uses the pre-normalization source to correctly attribute direction
+- **SIGALRM expiry** - stale flow expiry runs on a timer signal rather than checking timestamps on every packet, avoiding a `time()` syscall per packet at high traffic rates
+- **Stack frame fix** - `print_flows` originally allocated `flow_t sorted[4096]` (~180 KB) on the stack; changed to `static` to avoid stack exhaustion on busy interfaces
+- **Dangling pointer fix** - original `main.c` called `pcap_freealldevs()` before passing `dev` (a pointer into the freed list) to `pcap_open_live()`. Fixed by copying the device name into a local buffer before freeing
